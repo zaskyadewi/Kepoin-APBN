@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Calculator, ArrowRight, Loader2, RefreshCw, Lightbulb, MessageSquare } from "lucide-react";
 import { AllocationResult } from "../types";
+import { calculateAllocation } from "../calculations";
 
 interface TaxCalculatorProps {
   onSuggestPrompt: (prompt: string) => void;
@@ -40,20 +41,11 @@ export default function TaxCalculator({ onSuggestPrompt }: TaxCalculatorProps) {
     }
 
     try {
-      const response = await fetch("/api/calculate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nominal: checkValue })
-      });
-
-      if (!response.ok) {
-        throw new Error("Gagal menghitung alokasi anggaran.");
-      }
-
-      const data = await response.json();
-      setResults(data.results);
+      // Calculate locally instantly for 100% reliability regardless of hosting
+      const calculated = calculateAllocation(checkValue);
+      setResults(calculated);
     } catch (err: any) {
-      setError("Wah, server lagi pusing nih. Coba klik tombol hitung lagi ya!");
+      setError("Wah, ada kendala saat menghitung alokasi anggaran.");
     } finally {
       setLoading(false);
     }

@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { ChatMessage, AllocationResult } from "./types";
 import { QUICK_PROMPTS } from "./data";
+import { calculateAllocation } from "./calculations";
 import APBNCharts from "./components/APBNCharts";
 import TaxCalculator from "./components/TaxCalculator";
 
@@ -110,16 +111,12 @@ export default function App() {
     try {
       let calculationData: AllocationResult[] | undefined = undefined;
 
-      // Fetch precise percentages if it is a tax nominal
+      // Fetch or compute precise percentages if it is a tax nominal
       if (isNominalQuery && analyzedNominal) {
-        const calcRes = await fetch("/api/calculate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ nominal: analyzedNominal })
-        });
-        if (calcRes.ok) {
-          const cData = await calcRes.json();
-          calculationData = cData.results;
+        try {
+          calculationData = calculateAllocation(analyzedNominal);
+        } catch {
+          calculationData = undefined;
         }
       }
 
@@ -141,7 +138,22 @@ export default function App() {
       });
 
       if (!res.ok) {
-        throw new Error("Gagal memperoleh respon AI.");
+        let errMessage = `Error HTTP ${res.status}: Gagal memperoleh respon AI.`;
+        try {
+          const errData = await res.json();
+          if (errData?.error) {
+            errMessage = errData.error + (errData.details && errData.details !== errData.error ? ` [Detail: ${errData.details}]` : "");
+          }
+        } catch {
+          if (res.status === 404) {
+            errMessage = "Backend API (/api/chat) tidak ditemukan (404). Di Netlify, pastikan project dideploy via koneksi GitHub (bukan drag & drop folder dist), agar folder 'netlify/functions' ikut di-deploy.";
+          } else if (res.status === 500) {
+            errMessage = "Server backend mengembalikan status 500. Pastikan GEMINI_API_KEY sudah disetel di Netlify (Site configuration > Environment variables) dan lakukan 'Clear cache and deploy'!";
+          } else {
+            errMessage = `Server error HTTP ${res.status}: ${res.statusText || "Gagal menghubungi asisten AI."}`;
+          }
+        }
+        throw new Error(errMessage);
       }
 
       const data = await res.json();
@@ -156,7 +168,8 @@ export default function App() {
 
       setChatHistory(prev => [...prev, assistantMsg]);
     } catch (err: any) {
-      setError("Yah, asisten virtual kesulitan menjangkau database negara. Mohon periksa API Key di Secrets atau coba lagi!");
+      console.error("Chat Error:", err);
+      setError(err?.message || "Koneksi ke asisten virtual terputus. Mohon periksa GEMINI_API_KEY di hosting Anda atau coba lagi.");
     } finally {
       setLoading(false);
     }
@@ -201,21 +214,22 @@ export default function App() {
           {/* Logo Brand on left with a precise, crisp CSS/SVG hybrid logo */}
           <div 
             onClick={() => { setActiveTab("chat"); resetChatSession(); }}
-            className="flex items-center gap-2 cursor-pointer select-none"
+            className="flex items-center gap-2 cursor-pointer select-none notranslate"
             id="brand-logo-container"
+            translate="no"
           >
-            <div className="relative flex items-center select-none font-sans" id="logo-branding">
+            <div className="relative flex items-center select-none font-sans notranslate" id="logo-branding" translate="no">
               {/* Foreground Brand Text */}
-              <div className="relative flex flex-col justify-center leading-none z-10 pl-1" id="logo-text-group">
-                <div className="text-[20px] font-black tracking-tight text-[#185FA5] flex items-center leading-none font-sans">
-                  <span>Kepo</span>
-                  <span className="relative inline-block leading-none font-sans">
+              <div className="relative flex flex-col justify-center leading-none z-10 pl-1 notranslate" id="logo-text-group" translate="no">
+                <div className="text-[20px] font-black tracking-tight text-[#185FA5] flex items-center leading-none font-sans notranslate" translate="no">
+                  <span className="notranslate" translate="no">Kepo</span>
+                  <span className="relative inline-block leading-none font-sans notranslate" translate="no">
                     ı
                     <span className="absolute left-[calc(50%-2.5px)] top-[-1.5px] w-[5.5px] h-[5.5px] rounded-full bg-[#639922]" />
                   </span>
-                  <span>n</span>
+                  <span className="notranslate" translate="no">n</span>
                 </div>
-                <span className="text-[26px] font-black tracking-tighter text-[#042C53] mt-[-3px] leading-none font-sans">
+                <span className="text-[26px] font-black tracking-tighter text-[#042C53] mt-[-3px] leading-none font-sans notranslate" translate="no">
                   APBN
                 </span>
               </div>
@@ -386,7 +400,7 @@ export default function App() {
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   ) : (
                     <>
-                      <span>Kepoin Sekarang</span>
+                      <span className="notranslate" translate="no">Kepoin Sekarang</span>
                       <ArrowRight className="w-3.5 h-3.5 ml-0.5" />
                     </>
                   )}
